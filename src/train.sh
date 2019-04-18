@@ -10,4 +10,4 @@ MODELDIR="../model-$NETWORK"
 mkdir -p "$MODELDIR"
 PREFIX="$MODELDIR/model"
 LOGFILE="$MODELDIR/log"
-CUDA_VISIBLE_DEVICES='' python -u train_softmax.py --data-dir $DATA_DIR --network "$NETWORK" --loss-type 0 --prefix "$PREFIX" --per-batch-size 128
+CUDA_VISIBLE_DEVICES='' python -u train_softmax.py --data-dir $DATA_DIR --network "$NETWORK" --loss-type 0 --prefix "$PREFIX" --per-batch-size 16

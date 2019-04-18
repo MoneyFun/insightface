@@ -15,7 +15,6 @@ import mxnet as mx
 from mxnet import ndarray as nd
 import argparse
 import mxnet.optimizer as optimizer
-sys.path.append(os.path.join(os.path.dirname(__file__), 'common'))
 import face_image
 import fmobilefacenet
 import verification
@@ -243,12 +242,7 @@ def train_net(args):
       metric2 = LossValueMetric()
       eval_metrics.append( mx.metric.create(metric2) )
 
-    if args.network[0]=='r' or args.network[0]=='y':
-      initializer = mx.init.Xavier(rnd_type='gaussian', factor_type="out", magnitude=2) #resnet style
-    elif args.network[0]=='i' or args.network[0]=='x':
-      initializer = mx.init.Xavier(rnd_type='gaussian', factor_type="in", magnitude=2) #inception
-    else:
-      initializer = mx.init.Xavier(rnd_type='uniform', factor_type="in", magnitude=2)
+    initializer = mx.init.Xavier(rnd_type='gaussian', factor_type="out", magnitude=2) #resnet style
     #initializer = mx.init.Xavier(rnd_type='gaussian', factor_type="out", magnitude=2) #resnet style
     _rescale = 1.0/args.ctx_num
     opt = optimizer.SGD(learning_rate=base_lr, momentum=base_mom, wd=base_wd, rescale_grad=_rescale)
