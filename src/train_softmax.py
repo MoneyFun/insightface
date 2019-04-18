@@ -17,11 +17,11 @@ import argparse
 import mxnet.optimizer as optimizer
 sys.path.append(os.path.join(os.path.dirname(__file__), 'common'))
 import face_image
-sys.path.append(os.path.join(os.path.dirname(__file__), 'eval'))
+# sys.path.append(os.path.join(os.path.dirname(__file__), 'eval'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'symbols'))
 import fresnet
 import finception_resnet_v2
-import fmobilenet 
+import fmobilenet
 import fmobilenetv2
 import fmobilefacenet
 import fxception
@@ -139,13 +139,13 @@ def get_symbol(args, arg_params, aux_params):
   margin_symbols = []
   if args.network[0]=='d':
     embedding = fdensenet.get_symbol(args.emb_size, args.num_layers,
-        version_se=args.version_se, version_input=args.version_input, 
+        version_se=args.version_se, version_input=args.version_input,
         version_output=args.version_output, version_unit=args.version_unit)
   elif args.network[0]=='m':
     print('init mobilenet', args.num_layers)
     if args.num_layers==1:
-      embedding = fmobilenet.get_symbol(args.emb_size, 
-          version_input=args.version_input, 
+      embedding = fmobilenet.get_symbol(args.emb_size,
+          version_input=args.version_input,
           version_output=args.version_output,
           version_multiplier = args.version_multiplier)
     else:
@@ -153,17 +153,17 @@ def get_symbol(args, arg_params, aux_params):
   elif args.network[0]=='i':
     print('init inception-resnet-v2', args.num_layers)
     embedding = finception_resnet_v2.get_symbol(args.emb_size,
-        version_se=args.version_se, version_input=args.version_input, 
+        version_se=args.version_se, version_input=args.version_input,
         version_output=args.version_output, version_unit=args.version_unit)
   elif args.network[0]=='x':
     print('init xception', args.num_layers)
     embedding = fxception.get_symbol(args.emb_size,
-        version_se=args.version_se, version_input=args.version_input, 
+        version_se=args.version_se, version_input=args.version_input,
         version_output=args.version_output, version_unit=args.version_unit)
   elif args.network[0]=='p':
     print('init dpn', args.num_layers)
     embedding = fdpn.get_symbol(args.emb_size, args.num_layers,
-        version_se=args.version_se, version_input=args.version_input, 
+        version_se=args.version_se, version_input=args.version_input,
         version_output=args.version_output, version_unit=args.version_unit)
   elif args.network[0]=='n':
     print('init nasnet', args.num_layers)
@@ -176,8 +176,8 @@ def get_symbol(args, arg_params, aux_params):
     embedding = fmobilefacenet.get_symbol(args.emb_size, bn_mom = args.bn_mom, version_output=args.version_output)
   else:
     print('init resnet', args.num_layers)
-    embedding = fresnet.get_symbol(args.emb_size, args.num_layers, 
-        version_se=args.version_se, version_input=args.version_input, 
+    embedding = fresnet.get_symbol(args.emb_size, args.num_layers,
+        version_se=args.version_se, version_input=args.version_input,
         version_output=args.version_output, version_unit=args.version_unit,
         version_act=args.version_act)
   all_label = mx.symbol.Variable('softmax_label')
