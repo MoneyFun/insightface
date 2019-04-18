@@ -17,27 +17,11 @@ import argparse
 import mxnet.optimizer as optimizer
 sys.path.append(os.path.join(os.path.dirname(__file__), 'common'))
 import face_image
-# sys.path.append(os.path.join(os.path.dirname(__file__), 'eval'))
-sys.path.append(os.path.join(os.path.dirname(__file__), 'symbols'))
-import fresnet
-import finception_resnet_v2
-import fmobilenet
-import fmobilenetv2
 import fmobilefacenet
-import fxception
-import fdensenet
-import fdpn
-import fnasnet
-import spherenet
 import verification
-import sklearn
-#sys.path.append(os.path.join(os.path.dirname(__file__), 'losses'))
-#import center_loss
-
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
 
 args = None
 
@@ -137,211 +121,22 @@ def get_symbol(args, arg_params, aux_params):
   data_shape = (args.image_channel,args.image_h,args.image_w)
   image_shape = ",".join([str(x) for x in data_shape])
   margin_symbols = []
-  if args.network[0]=='d':
-    embedding = fdensenet.get_symbol(args.emb_size, args.num_layers,
-        version_se=args.version_se, version_input=args.version_input,
-        version_output=args.version_output, version_unit=args.version_unit)
-  elif args.network[0]=='m':
-    print('init mobilenet', args.num_layers)
-    if args.num_layers==1:
-      embedding = fmobilenet.get_symbol(args.emb_size,
-          version_input=args.version_input,
-          version_output=args.version_output,
-          version_multiplier = args.version_multiplier)
-    else:
-      embedding = fmobilenetv2.get_symbol(args.emb_size)
-  elif args.network[0]=='i':
-    print('init inception-resnet-v2', args.num_layers)
-    embedding = finception_resnet_v2.get_symbol(args.emb_size,
-        version_se=args.version_se, version_input=args.version_input,
-        version_output=args.version_output, version_unit=args.version_unit)
-  elif args.network[0]=='x':
-    print('init xception', args.num_layers)
-    embedding = fxception.get_symbol(args.emb_size,
-        version_se=args.version_se, version_input=args.version_input,
-        version_output=args.version_output, version_unit=args.version_unit)
-  elif args.network[0]=='p':
-    print('init dpn', args.num_layers)
-    embedding = fdpn.get_symbol(args.emb_size, args.num_layers,
-        version_se=args.version_se, version_input=args.version_input,
-        version_output=args.version_output, version_unit=args.version_unit)
-  elif args.network[0]=='n':
-    print('init nasnet', args.num_layers)
-    embedding = fnasnet.get_symbol(args.emb_size)
-  elif args.network[0]=='s':
-    print('init spherenet', args.num_layers)
-    embedding = spherenet.get_symbol(args.emb_size, args.num_layers)
-  elif args.network[0]=='y':
-    print('init mobilefacenet', args.num_layers)
-    embedding = fmobilefacenet.get_symbol(args.emb_size, bn_mom = args.bn_mom, version_output=args.version_output)
-  else:
-    print('init resnet', args.num_layers)
-    embedding = fresnet.get_symbol(args.emb_size, args.num_layers,
-        version_se=args.version_se, version_input=args.version_input,
-        version_output=args.version_output, version_unit=args.version_unit,
-        version_act=args.version_act)
+
+  print('init mobilefacenet', args.num_layers)
+  embedding = fmobilefacenet.get_symbol(args.emb_size, bn_mom = args.bn_mom, version_output=args.version_output)
+
   all_label = mx.symbol.Variable('softmax_label')
   gt_label = all_label
   extra_loss = None
   _weight = mx.symbol.Variable("fc7_weight", shape=(args.num_classes, args.emb_size), lr_mult=args.fc7_lr_mult, wd_mult=args.fc7_wd_mult)
-  if args.loss_type==0: #softmax
-    if args.fc7_no_bias:
-      fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
-    else:
-      _bias = mx.symbol.Variable('fc7_bias', lr_mult=2.0, wd_mult=0.0)
-      fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, bias = _bias, num_hidden=args.num_classes, name='fc7')
-  elif args.loss_type==1: #sphere
-    _weight = mx.symbol.L2Normalization(_weight, mode='instance')
-    fc7 = mx.sym.LSoftmax(data=embedding, label=gt_label, num_hidden=args.num_classes,
-                          weight = _weight,
-                          beta=args.beta, margin=args.margin, scale=args.scale,
-                          beta_min=args.beta_min, verbose=1000, name='fc7')
-  elif args.loss_type==2:
-    s = args.margin_s
-    m = args.margin_m
-    assert(s>0.0)
-    assert(m>0.0)
-    _weight = mx.symbol.L2Normalization(_weight, mode='instance')
-    nembedding = mx.symbol.L2Normalization(embedding, mode='instance', name='fc1n')*s
-    fc7 = mx.sym.FullyConnected(data=nembedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
-    s_m = s*m
-    gt_one_hot = mx.sym.one_hot(gt_label, depth = args.num_classes, on_value = s_m, off_value = 0.0)
-    fc7 = fc7-gt_one_hot
-  elif args.loss_type==4:
-    s = args.margin_s
-    m = args.margin_m
-    assert s>0.0
-    assert m>=0.0
-    assert m<(math.pi/2)
-    _weight = mx.symbol.L2Normalization(_weight, mode='instance')
-    nembedding = mx.symbol.L2Normalization(embedding, mode='instance', name='fc1n')*s
-    fc7 = mx.sym.FullyConnected(data=nembedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
-    zy = mx.sym.pick(fc7, gt_label, axis=1)
-    cos_t = zy/s
-    cos_m = math.cos(m)
-    sin_m = math.sin(m)
-    mm = math.sin(math.pi-m)*m
-    #threshold = 0.0
-    threshold = math.cos(math.pi-m)
-    if args.easy_margin:
-      cond = mx.symbol.Activation(data=cos_t, act_type='relu')
-    else:
-      cond_v = cos_t - threshold
-      cond = mx.symbol.Activation(data=cond_v, act_type='relu')
-    body = cos_t*cos_t
-    body = 1.0-body
-    sin_t = mx.sym.sqrt(body)
-    new_zy = cos_t*cos_m
-    b = sin_t*sin_m
-    new_zy = new_zy - b
-    new_zy = new_zy*s
-    if args.easy_margin:
-      zy_keep = zy
-    else:
-      zy_keep = zy - s*mm
-    new_zy = mx.sym.where(cond, new_zy, zy_keep)
+  print("loss_type", args.loss_type)
 
-    diff = new_zy - zy
-    diff = mx.sym.expand_dims(diff, 1)
-    gt_one_hot = mx.sym.one_hot(gt_label, depth = args.num_classes, on_value = 1.0, off_value = 0.0)
-    body = mx.sym.broadcast_mul(gt_one_hot, diff)
-    fc7 = fc7+body
-  elif args.loss_type==5:
-    s = args.margin_s
-    m = args.margin_m
-    assert s>0.0
-    _weight = mx.symbol.L2Normalization(_weight, mode='instance')
-    nembedding = mx.symbol.L2Normalization(embedding, mode='instance', name='fc1n')*s
-    fc7 = mx.sym.FullyConnected(data=nembedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
-    if args.margin_a!=1.0 or args.margin_m!=0.0 or args.margin_b!=0.0:
-      if args.margin_a==1.0 and args.margin_m==0.0:
-        s_m = s*args.margin_b
-        gt_one_hot = mx.sym.one_hot(gt_label, depth = args.num_classes, on_value = s_m, off_value = 0.0)
-        fc7 = fc7-gt_one_hot
-      else:
-        zy = mx.sym.pick(fc7, gt_label, axis=1)
-        cos_t = zy/s
-        t = mx.sym.arccos(cos_t)
-        if args.margin_a!=1.0:
-          t = t*args.margin_a
-        if args.margin_m>0.0:
-          t = t+args.margin_m
-        body = mx.sym.cos(t)
-        if args.margin_b>0.0:
-          body = body - args.margin_b
-        new_zy = body*s
-        diff = new_zy - zy
-        diff = mx.sym.expand_dims(diff, 1)
-        gt_one_hot = mx.sym.one_hot(gt_label, depth = args.num_classes, on_value = 1.0, off_value = 0.0)
-        body = mx.sym.broadcast_mul(gt_one_hot, diff)
-        fc7 = fc7+body
-  elif args.loss_type==6:
-    s = args.margin_s
-    m = args.margin_m
-    assert s>0.0
-    assert args.margin_b>0.0
-    _weight = mx.symbol.L2Normalization(_weight, mode='instance')
-    nembedding = mx.symbol.L2Normalization(embedding, mode='instance', name='fc1n')*s
-    fc7 = mx.sym.FullyConnected(data=nembedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
-    zy = mx.sym.pick(fc7, gt_label, axis=1)
-    cos_t = zy/s
-    t = mx.sym.arccos(cos_t)
-    intra_loss = t/np.pi
-    intra_loss = mx.sym.mean(intra_loss)
-    #intra_loss = mx.sym.exp(cos_t*-1.0)
-    intra_loss = mx.sym.MakeLoss(intra_loss, name='intra_loss', grad_scale = args.margin_b)
-    if m>0.0:
-      t = t+m
-      body = mx.sym.cos(t)
-      new_zy = body*s
-      diff = new_zy - zy
-      diff = mx.sym.expand_dims(diff, 1)
-      gt_one_hot = mx.sym.one_hot(gt_label, depth = args.num_classes, on_value = 1.0, off_value = 0.0)
-      body = mx.sym.broadcast_mul(gt_one_hot, diff)
-      fc7 = fc7+body
-  elif args.loss_type==7:
-    s = args.margin_s
-    m = args.margin_m
-    assert s>0.0
-    assert args.margin_b>0.0
-    assert args.margin_a>0.0
-    _weight = mx.symbol.L2Normalization(_weight, mode='instance')
-    nembedding = mx.symbol.L2Normalization(embedding, mode='instance', name='fc1n')*s
-    fc7 = mx.sym.FullyConnected(data=nembedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
-    zy = mx.sym.pick(fc7, gt_label, axis=1)
-    cos_t = zy/s
-    t = mx.sym.arccos(cos_t)
+  if args.fc7_no_bias:
+    fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
+  else:
+    _bias = mx.symbol.Variable('fc7_bias', lr_mult=2.0, wd_mult=0.0)
+    fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, bias = _bias, num_hidden=args.num_classes, name='fc7')
 
-    #counter_weight = mx.sym.take(_weight, gt_label, axis=1)
-    #counter_cos = mx.sym.dot(counter_weight, _weight, transpose_a=True)
-    counter_weight = mx.sym.take(_weight, gt_label, axis=0)
-    counter_cos = mx.sym.dot(counter_weight, _weight, transpose_b=True)
-    #counter_cos = mx.sym.minimum(counter_cos, 1.0)
-    #counter_angle = mx.sym.arccos(counter_cos)
-    #counter_angle = counter_angle * -1.0
-    #counter_angle = counter_angle/np.pi #[0,1]
-    #inter_loss = mx.sym.exp(counter_angle)
-
-    #counter_cos = mx.sym.dot(_weight, _weight, transpose_b=True)
-    #counter_cos = mx.sym.minimum(counter_cos, 1.0)
-    #counter_angle = mx.sym.arccos(counter_cos)
-    #counter_angle = mx.sym.sort(counter_angle, axis=1)
-    #counter_angle = mx.sym.slice_axis(counter_angle, axis=1, begin=0,end=int(args.margin_a))
-
-    #inter_loss = counter_angle*-1.0 # [-1,0]
-    #inter_loss = inter_loss+1.0 # [0,1]
-    inter_loss = counter_cos
-    inter_loss = mx.sym.mean(inter_loss)
-    inter_loss = mx.sym.MakeLoss(inter_loss, name='inter_loss', grad_scale = args.margin_b)
-    if m>0.0:
-      t = t+m
-      body = mx.sym.cos(t)
-      new_zy = body*s
-      diff = new_zy - zy
-      diff = mx.sym.expand_dims(diff, 1)
-      gt_one_hot = mx.sym.one_hot(gt_label, depth = args.num_classes, on_value = 1.0, off_value = 0.0)
-      body = mx.sym.broadcast_mul(gt_one_hot, diff)
-      fc7 = fc7+body
   out_list = [mx.symbol.BlockGrad(embedding)]
   softmax = mx.symbol.SoftmaxOutput(data=fc7, label = gt_label, name='softmax', normalization='valid')
   out_list.append(softmax)
@@ -418,18 +213,9 @@ def train_net(args):
     base_lr = args.lr
     base_wd = args.wd
     base_mom = args.mom
-    if len(args.pretrained)==0:
-      arg_params = None
-      aux_params = None
-      sym, arg_params, aux_params = get_symbol(args, arg_params, aux_params)
-      if args.network[0]=='s':
-        data_shape_dict = {'data' : (args.per_batch_size,)+data_shape}
-        spherenet.init_weights(sym, data_shape_dict, args.num_layers)
-    else:
-      vec = args.pretrained.split(',')
-      print('loading', vec)
-      _, arg_params, aux_params = mx.model.load_checkpoint(vec[0], int(vec[1]))
-      sym, arg_params, aux_params = get_symbol(args, arg_params, aux_params)
+    arg_params = None
+    aux_params = None
+    sym, arg_params, aux_params = get_symbol(args, arg_params, aux_params)
 
     #label_name = 'softmax_label'
     #label_shape = (args.batch_size,)
@@ -479,8 +265,6 @@ def train_net(args):
         ver_name_list.append(name)
         print('ver', name)
 
-
-
     def ver_test(nbatch):
       results = []
       for i in xrange(len(ver_list)):
@@ -490,8 +274,6 @@ def train_net(args):
         print('[%s][%d]Accuracy-Flip: %1.5f+-%1.5f' % (ver_name_list[i], nbatch, acc2, std2))
         results.append(acc2)
       return results
-
-
 
     highest_acc = [0.0, 0.0]  #lfw and target
     #for i in xrange(len(ver_list)):
