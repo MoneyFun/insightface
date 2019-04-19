@@ -10,7 +10,6 @@ import logging
 import pickle
 import numpy as np
 from image_iter import FaceImageIter
-from image_iter import FaceImageIterList
 import mxnet as mx
 from mxnet import ndarray as nd
 import argparse
@@ -48,21 +47,6 @@ class AccMetric(mx.metric.EvalMetric):
     assert label.shape==pred_label.shape
     self.sum_metric += (pred_label.flat == label.flat).sum()
     self.num_inst += len(pred_label.flat)
-
-class LossValueMetric(mx.metric.EvalMetric):
-  def __init__(self):
-    self.axis = 1
-    super(LossValueMetric, self).__init__(
-        'lossvalue', axis=self.axis,
-        output_names=None, label_names=None)
-    self.losses = []
-
-  def update(self, labels, preds):
-    loss = preds[-1].asnumpy()[0]
-    self.sum_metric += loss
-    self.num_inst += 1.0
-    gt_label = preds[-2].asnumpy()
-    #print(gt_label)
 
 def parse_args():
   parser = argparse.ArgumentParser(description='Train face network')
@@ -118,10 +102,8 @@ def parse_args():
 
 def get_symbol(args):
   print("args.version_output", args.version_output)
-  embedding = fmobilefacenet.get_symbol(args.emb_size, bn_mom = args.bn_mom, version_output=args.version_output)
+  embedding = fmobilefacenet.get_symbol(args.emb_size, bn_mom = args.bn_mom)
 
-  all_label = mx.symbol.Variable('softmax_label')
-  gt_label = all_label
   _weight = mx.symbol.Variable("fc7_weight", shape=(args.num_classes, args.emb_size),
     lr_mult=args.fc7_lr_mult, wd_mult=args.fc7_wd_mult)
 
@@ -129,7 +111,7 @@ def get_symbol(args):
   fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, bias = _bias, num_hidden=args.num_classes, name='fc7')
 
   out_list = [mx.symbol.BlockGrad(embedding)]
-  softmax = mx.symbol.SoftmaxOutput(data=fc7, label = gt_label, name='softmax', normalization='valid')
+  softmax = mx.symbol.SoftmaxOutput(data=fc7, name='softmax', normalization='valid')
   out_list.append(softmax)
   print(out_list)
   out = mx.symbol.Group(out_list)
@@ -205,8 +187,7 @@ def train_net(args):
     print(out_shapes)
     print("++++++++++++++++++++++++++++")
 
-    #label_name = 'softmax_label'
-    #label_shape = (args.batch_size,)
+
     model = mx.mod.Module(
         context       = ctx,
         symbol        = sym,
@@ -227,10 +208,7 @@ def train_net(args):
 
     metric1 = AccMetric()
     eval_metrics = [mx.metric.create(metric1)]
-    if args.ce_loss:
-      metric2 = LossValueMetric()
-      eval_metrics.append( mx.metric.create(metric2) )
-
+    quit()
     initializer = mx.init.Xavier(rnd_type='gaussian', factor_type="out", magnitude=2) #resnet style
     #initializer = mx.init.Xavier(rnd_type='gaussian', factor_type="out", magnitude=2) #resnet style
     _rescale = 1.0/args.ctx_num

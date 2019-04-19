@@ -40,24 +40,11 @@ def Residual(data, num_block=1, num_out=1, kernel=(3, 3), stride=(1, 1), pad=(1,
     	identity=conv+shortcut
     return identity
 
-def get_fc1(last_conv, num_classes, fc_type):
-  bn_mom = 0.9
-  body = last_conv
-  body = mx.sym.BatchNorm(data=body, fix_gamma=False, eps=2e-5, momentum=bn_mom, name='bn1')
-  body = mx.symbol.Dropout(data=body, p=0.4)
-  fc1 = mx.sym.FullyConnected(data=body, num_hidden=num_classes, name='pre_fc1')
-  fc1 = mx.sym.BatchNorm(data=fc1, fix_gamma=True, eps=2e-5, momentum=bn_mom, name='fc1')
-  return fc1
-
 def get_symbol(num_classes, **kwargs):
     global bn_mom
     bn_mom = kwargs.get('bn_mom', 0.9)
     wd_mult = kwargs.get('wd_mult', 1.)
-    version_output = kwargs.get('version_output', 'GNAP')
-    #assert version_output=='GDC' or version_output=='GNAP'
-    fc_type = version_output
     print("--------------------------------")
-    print("fc_type", fc_type)
     print("num_classes", num_classes)
     print("--------------------------------")
     data = mx.symbol.Variable(name="data")
@@ -73,5 +60,10 @@ def get_symbol(num_classes, **kwargs):
     conv_5 = Residual(conv_45, num_block=2, num_out=128, kernel=(3, 3), stride=(1, 1), pad=(1, 1), num_group=256, name="res_5")
     conv_6_sep = Conv(conv_5, num_filter=512, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_6sep")
 
-    fc1 = get_fc1(conv_6_sep, num_classes, fc_type)
+    bn_mom = 0.9
+    body = mx.sym.BatchNorm(data=conv_6_sep, fix_gamma=False, eps=2e-5, momentum=bn_mom, name='bn1')
+    body = mx.symbol.Dropout(data=body, p=0.4)
+    fc1 = mx.sym.FullyConnected(data=body, num_hidden=num_classes, name='pre_fc1')
+    fc1 = mx.sym.BatchNorm(data=fc1, fix_gamma=True, eps=2e-5, momentum=bn_mom, name='fc1')
+
     return fc1
