@@ -116,45 +116,24 @@ def parse_args():
   return args
 
 
-def get_symbol(args, arg_params, aux_params):
-  data_shape = (args.image_channel,args.image_h,args.image_w)
-  image_shape = ",".join([str(x) for x in data_shape])
-  margin_symbols = []
-
-  print('init mobilefacenet', args.num_layers)
+def get_symbol(args):
+  print("args.version_output", args.version_output)
   embedding = fmobilefacenet.get_symbol(args.emb_size, bn_mom = args.bn_mom, version_output=args.version_output)
 
   all_label = mx.symbol.Variable('softmax_label')
   gt_label = all_label
-  extra_loss = None
-  _weight = mx.symbol.Variable("fc7_weight", shape=(args.num_classes, args.emb_size), lr_mult=args.fc7_lr_mult, wd_mult=args.fc7_wd_mult)
-  print("loss_type", args.loss_type)
+  _weight = mx.symbol.Variable("fc7_weight", shape=(args.num_classes, args.emb_size),
+    lr_mult=args.fc7_lr_mult, wd_mult=args.fc7_wd_mult)
 
-  if args.fc7_no_bias:
-    fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, no_bias = True, num_hidden=args.num_classes, name='fc7')
-  else:
-    _bias = mx.symbol.Variable('fc7_bias', lr_mult=2.0, wd_mult=0.0)
-    fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, bias = _bias, num_hidden=args.num_classes, name='fc7')
+  _bias = mx.symbol.Variable('fc7_bias', lr_mult=2.0, wd_mult=0.0)
+  fc7 = mx.sym.FullyConnected(data=embedding, weight = _weight, bias = _bias, num_hidden=args.num_classes, name='fc7')
 
   out_list = [mx.symbol.BlockGrad(embedding)]
   softmax = mx.symbol.SoftmaxOutput(data=fc7, label = gt_label, name='softmax', normalization='valid')
   out_list.append(softmax)
-  if args.loss_type==6:
-    out_list.append(intra_loss)
-  if args.loss_type==7:
-    out_list.append(inter_loss)
-    #out_list.append(mx.sym.BlockGrad(counter_weight))
-    #out_list.append(intra_loss)
-  if args.ce_loss:
-    #ce_loss = mx.symbol.softmax_cross_entropy(data=fc7, label = gt_label, name='ce_loss')/args.per_batch_size
-    body = mx.symbol.SoftmaxActivation(data=fc7)
-    body = mx.symbol.log(body)
-    _label = mx.sym.one_hot(gt_label, depth = args.num_classes, on_value = -1.0, off_value = 0.0)
-    body = body*_label
-    ce_loss = mx.symbol.sum(body)/args.per_batch_size
-    out_list.append(mx.symbol.BlockGrad(ce_loss))
+  print(out_list)
   out = mx.symbol.Group(out_list)
-  return (out, arg_params, aux_params)
+  return out
 
 def train_net(args):
     ctx = []
@@ -173,8 +152,6 @@ def train_net(args):
       os.makedirs(prefix_dir)
     end_epoch = args.end_epoch
     args.ctx_num = len(ctx)
-    args.num_layers = int(args.network[1:])
-    print('num_layers', args.num_layers)
     if args.per_batch_size==0:
       args.per_batch_size = 128
     args.batch_size = args.per_batch_size*args.ctx_num
@@ -212,9 +189,21 @@ def train_net(args):
     base_lr = args.lr
     base_wd = args.wd
     base_mom = args.mom
-    arg_params = None
-    aux_params = None
-    sym, arg_params, aux_params = get_symbol(args, arg_params, aux_params)
+    sym = get_symbol(args)
+    # arg_name = sym.list_arguments()
+    # out_name = sym.list_outputs()
+    arg_shapes, out_shapes, aux_shapes = sym.infer_shape(data = (1, args.image_channel,image_size[0],image_size[1]))
+    print("============================")
+    # for i in zip(arg_name, arg_shapes):
+    #   print(i)
+    # for i in zip(out_name, out_shapes):
+    #   print(i)
+
+    digraph = mx.viz.plot_network(sym, shape={"data":(1, 1, 32, 32)})
+    digraph.view()
+    print("-----------------------------")
+    print(out_shapes)
+    print("++++++++++++++++++++++++++++")
 
     #label_name = 'softmax_label'
     #label_shape = (args.batch_size,)
@@ -357,8 +346,8 @@ def train_net(args):
         optimizer          = opt,
         #optimizer_params   = optimizer_params,
         initializer        = initializer,
-        arg_params         = arg_params,
-        aux_params         = aux_params,
+        arg_params         = None,
+        aux_params         = None,
         allow_missing      = True,
         batch_end_callback = _batch_callback,
         epoch_end_callback = epoch_cb )
