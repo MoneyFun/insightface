@@ -150,20 +150,36 @@ cap = cv2.VideoCapture(0)
 while True:
 	ret,frame = cap.read()
 	# print(frame.shape)
+
+	ret = detector.detect_face(frame)
+	if ret is None:
+		cv2.imshow("test", frame)
+		cv2.waitKey(1)
+		continue
+
+	bboxes, points = ret
+	if bboxes.shape[0]==0:
+		cv2.imshow("test", frame)
+		cv2.waitKey(1)
+		continue
+
+	for bbox,point in zip(bboxes, points):
+		if bbox[4] > 0.95:
+			bbox = bbox[0:4]
+			cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])), (255,0,0), 2)
+			point = point.reshape((2,5)).T
+
+			nimg = preprocess(frame, bbox, point, image_size='112,112')
+			nimg = cv2.cvtColor(nimg, cv2.COLOR_BGR2RGB)
+			img = np.transpose(nimg, (2,0,1))
+
+			f2 = get_feature(img)
+			dist = np.sum(np.square(f1-f2))
+			# print(dist)
+			sim = np.dot(f1, f2.T)
+			print(sim)
+
 	cv2.imshow("test", frame)
 	key = cv2.waitKey(1)
 	if key == ord('c'):
 		cv2.imwrite("test.jpg", frame)
-	img = get_input(frame)
-	if img is None:
-		continue
-	# print(type(img))
-	# print(img.shape)
-	#
-	# continue
-	f2 = get_feature(img)
-	dist = np.sum(np.square(f1-f2))
-	# print(dist)
-	sim = np.dot(f1, f2.T)
-	print(sim)
-
