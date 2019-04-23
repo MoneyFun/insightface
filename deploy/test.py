@@ -16,7 +16,7 @@ parser.add_argument('--threshold', default=1.24, type=float, help='ver dist thre
 args = parser.parse_args()
 
 model = face_model.FaceModel(args)
-img = cv2.imread('Tom_Hanks_54745.png')
+img = cv2.imread('test.jpg')
 img = model.get_input(img)
 f1 = model.get_feature(img)
 print(f1[0:10])
@@ -29,7 +29,9 @@ while True:
 	ret,frame = cap.read()
 	# print(frame.shape)
 	cv2.imshow("test", frame)
-	cv2.waitKey(1)
+	key = cv2.waitKey(1)
+	if key == ord('c'):
+		cv2.imwrite("test.jpg", frame)
 	img = model.get_input(frame)
 	if img is None:
 		continue
