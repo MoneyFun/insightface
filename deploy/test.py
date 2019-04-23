@@ -166,10 +166,12 @@ while True:
 	for bbox,point in zip(bboxes, points):
 		if bbox[4] > 0.95:
 			bbox = bbox[0:4]
-			cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])), (255,0,0), 2)
 			point = point.reshape((2,5)).T
 
 			nimg = preprocess(frame, bbox, point, image_size='112,112')
+			cv2.imshow("face", nimg)
+			cv2.waitKey(1)
+
 			nimg = cv2.cvtColor(nimg, cv2.COLOR_BGR2RGB)
 			img = np.transpose(nimg, (2,0,1))
 
@@ -178,6 +180,7 @@ while True:
 			# print(dist)
 			sim = np.dot(f1, f2.T)
 			print(sim)
+			cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])), (255,0,0), 2)
 
 	cv2.imshow("test", frame)
 	key = cv2.waitKey(1)
