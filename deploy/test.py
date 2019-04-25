@@ -8,6 +8,7 @@ from mtcnn_detector import MtcnnDetector
 from skimage import transform as trans
 import sklearn
 from sklearn.decomposition import PCA
+import math
 
 def preprocess(img, bbox=None, landmark=None, **kwargs):
   M = None
@@ -132,9 +133,45 @@ while True:
 		continue
 
 	for bbox,point in zip(bboxes, points):
-		if bbox[4] > 0.95:
+		# print("bbox[4] = ", bbox[4])
+
+
+		if bbox[4] > 0.9 and (bbox[3] -bbox[1] > 100):
+			# print(bbox.shape)
+			# print(point.shape)
+
 			bbox = bbox[0:4]
 			point = point.reshape((2,5)).T
+			for p in point:
+				cv2.circle(frame, tuple(p), 1, (0, 0, 255), 4)
+			# cv2.circle(frame, tuple(point[4]), 1, (0, 0, 255), 4)
+
+			z_eye = math.atan2(point[1][1] - point[0][1], point[1][0] - point[0][0])
+			z_mouth = math.atan2(point[4][1] - point[3][1], point[4][0] - point[3][0])
+			z = math.degrees((z_eye + z_mouth)/2)
+			# print(math.degrees(z))
+			x_eye_left = point[0][0] - bbox[0]
+			x_eye_right = bbox[2] - point[1][0]
+
+			x_mouth_left = point[3][0] - bbox[0]
+			x_mouth_right = bbox[2] - point[4][0]
+
+			if x_eye_left > 0 and x_eye_right > 0 and x_mouth_left > 0 and x_mouth_right > 0:
+				# print("x_eye_left = ", x_eye_left)
+				# print("x_eye_right = ", x_eye_right)
+
+				# print("x_mouth_left = ", x_mouth_left)
+				# print("x_mouth_right = ", x_mouth_right)
+				x_eye = math.asin(1.0 * (x_eye_left - x_eye_right)/(x_eye_left + x_eye_right))
+				x_mouth = math.asin(1.0 * (x_mouth_left - x_mouth_right)/ (x_mouth_left + x_mouth_right))
+				x = math.degrees((x_eye + x_mouth) / 2)
+				# print(x)
+
+
+			y_up = point[0][1] + point[1][1] + point[2][1] - bbox[1] * 3
+			y = math.asin((y_up / (bbox[3] - bbox[1]))/1.4 - 1)
+			y = math.degrees(y * 2)
+			print(y)
 
 			nimg = preprocess(frame, bbox, point, image_size='112,112')
 			cv2.imshow("face", nimg)
@@ -147,7 +184,7 @@ while True:
 			dist = np.sum(np.square(f1-f2))
 			# print(dist)
 			sim = np.dot(f1, f2.T)
-			print(sim)
+			# print("sim = ", sim)
 			cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])), (255,0,0), 2)
 
 	cv2.imshow("test", frame)
